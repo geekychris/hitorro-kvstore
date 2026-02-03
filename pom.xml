@@ -15,9 +15,7 @@
     <properties>
         <hitorro.deploy.repo.path>${user.home}/code/hitorro-maven</hitorro.deploy.repo.path>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Using 8.11.3 as it includes native libraries in the JAR -->
-        <!-- Version 10.x requires separate native library installation -->
-        <rocksdb.version>8.11.3</rocksdb.version>
+        <rocksdb.version>10.4.2</rocksdb.version>
     </properties>
 
     <repositories>
@@ -40,11 +38,50 @@
             <version>3.0.1</version>
         </dependency>
 
-        <!-- RocksDB -->
+        <!-- RocksDB Core -->
         <dependency>
             <groupId>org.rocksdb</groupId>
             <artifactId>rocksdbjni</artifactId>
             <version>${rocksdb.version}</version>
+        </dependency>
+
+        <!-- Platform-specific RocksDB native libraries -->
+        <!-- These dependencies ensure the native libraries are available for all platforms -->
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>osx</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>linux64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>linux64-musl</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>linux32</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>linux32-musl</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+            <classifier>win64</classifier>
         </dependency>
 
         <!-- Jackson for serialization (from hitorro-util) -->
