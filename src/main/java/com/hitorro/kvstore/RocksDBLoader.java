@@ -36,7 +36,7 @@ public class RocksDBLoader {
      *
      * @return platform classifier (e.g., "osx", "linux64", "win64")
      */
-    public static String detectPlatform() {
+    public static final String detectPlatform() {
         if (detectedPlatform != null) {
             return detectedPlatform;
         }
