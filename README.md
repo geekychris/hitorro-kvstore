@@ -1,18 +1,57 @@
 # Hitorro KVStore
 
-A high-performance, feature-rich RocksDB wrapper for Java 21+ providing multiple access patterns, replication support, and flexible configuration options.
+A high-performance, feature-rich RocksDB wrapper for Java 21+ providing multiple access patterns, WAL-based replication, type-safe serialization, and flexible configuration options.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Building](#building)
+- [Testing](#testing)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [DatabaseConfig](#databaseconfig)
+- [Basic Operations](#basic-operations)
+- [Batch Operations](#batch-operations)
+- [Prefix Scanning & Streaming](#prefix-scanning--streaming)
+- [TypedKVStore](#typedkvstore)
+- [Multi-Database Management](#multi-database-management)
+- [Result Pattern](#result-pattern)
+- [Replication](#replication)
+- [Key Design Best Practices](#key-design-best-practices)
+- [Configuration Reference](#configuration-reference)
+- [Performance Tuning](#performance-tuning)
+
+---
 
 ## Features
 
 - **Multiple Access Patterns**: Single operations, batch operations, iterators, consumers, and Java Streams
-- **Prefix Queries**: Efficient scanning with prefix matching
-- **Replication Support**: Built-in WAL tailing for primary-replica setups
+- **Prefix Queries**: Efficient scanning with prefix matching using RocksDB iterators
+- **Replication Support**: Built-in WAL tailing for primary-replica setups with checkpoint/resume
 - **Transactional & Non-Transactional Batches**: ACID guarantees when needed, performance when not
-- **Configurable Compression**: Support for Snappy, LZ4, ZSTD, and more
-- **Type-Safe Wrapper**: Automatic JSON serialization/deserialization via TypedKVStore
+- **Configurable Compression**: Snappy, LZ4, LZ4HC, ZSTD, ZLIB, or none
+- **Type-Safe Wrapper**: Automatic JSON serialization/deserialization via `TypedKVStore`
 - **Result Pattern**: Clean error handling without exceptions
-- **Resource Management**: Automatic cleanup with shutdown hooks and AutoCloseable
-- **Multi-Database Management**: KVStoreManager for managing multiple database instances
+- **Resource Management**: Automatic cleanup with shutdown hooks and `AutoCloseable`
+- **Multi-Database Management**: `KVStoreManager` for managing multiple database instances
+- **Disk and Memory Modes**: Persistent storage or in-memory for caching/testing
+
+---
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| **Java** | 21+ | Required |
+| **Maven** | 3.8+ | Required for building |
+
+RocksDB native libraries are included as platform-specific JARs (macOS, Linux 32/64, Windows 64). The `RocksDBLoader` handles transparent platform detection and library loading.
+
+---
 
 ## Installation
 
@@ -26,6 +65,150 @@ Add the dependency to your `pom.xml`:
 </dependency>
 ```
 
+---
+
+## Building
+
+```bash
+cd hitorro-kvstore
+
+# Full build with tests
+mvn clean install
+
+# Build without tests
+mvn clean install -DskipTests
+```
+
+### Build Dependencies
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| RocksDB | 10.4.2 | Core storage engine (JNI with platform-specific native libs) |
+| hitorro-util | 3.0.1 | Shared utilities |
+| Jackson | 2.18.2 | JSON serialization (TypedKVStore) |
+| Log4j | 1.2.17 | Logging |
+| JUnit 5 | 5.11.4 | Testing framework |
+| Mockito | 5.14.2 | Mocking framework |
+| AssertJ | 3.27.3 | Fluent test assertions |
+
+---
+
+## Testing
+
+```bash
+# Run all tests
+mvn test
+
+# Run a single test class
+mvn test -Dtest=KVStoreTest
+
+# Run a single test method
+mvn test -Dtest=ReplicationDemonstrationTest#demonstrateContinuousReplication
+```
+
+### Test Coverage
+
+| Test Class | What It Tests |
+|------------|--------------|
+| `KVStoreTest` | Basic put/get/delete, batch operations, prefix scan, consumers, key extraction |
+| `ReplicationDemonstrationTest` | Continuous replication with disconnect/reconnect, checkpoint/resume, deletes and updates |
+
+#### `KVStoreTest` -- Unit Tests
+
+| Test | What It Verifies |
+|------|-----------------|
+| `testBasicPutAndGet` | Single key-value put and retrieval |
+| `testDelete` | Delete key, verify not found |
+| `testBatchPut` | Put multiple keys atomically |
+| `testBatchGet` | Retrieve multiple keys in one call |
+| `testPrefixScan` | Scan values by key prefix |
+| `testPrefixScanWithKeys` | Scan key-value pairs by prefix |
+| `testConsumer` | Consume prefix values with callback |
+| `testKeyExtraction` | Store object with key extractor function |
+
+#### `ReplicationDemonstrationTest` -- Integration Tests
+
+| Test | Scenario |
+|------|----------|
+| `demonstrateContinuousReplication` | Writer + replicator threads, simulated disconnect, reconnect catch-up, final consistency check |
+| `demonstrateCheckpointAndResume` | Write 50 records, replicate 25, checkpoint, write 50 more, resume from checkpoint, verify all 100 |
+| `demonstrateDeletesAndUpdates` | Write 10 records, replicate, update 5, delete 3, replicate again, verify final state |
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph API["Public API"]
+        KVS["KVStore\n(interface)"]
+        TKVS["TypedKVStore&lt;V&gt;\n(JSON serialization)"]
+        MGR["KVStoreManager\n(multi-database)"]
+    end
+
+    subgraph Implementation
+        RDB["RocksDBStore\n(main implementation)"]
+        LDR["RocksDBLoader\n(native library detection)"]
+        CFG["DatabaseConfig\n(builder pattern)"]
+    end
+
+    subgraph Config
+        CM["CompressionType\n(SNAPPY, LZ4, ZSTD, ...)"]
+        SM["StorageMode\n(DISK, MEMORY)"]
+    end
+
+    subgraph Replication
+        RS["ReplicationSource\n(WAL tailing)"]
+        RT["ReplicationTarget\n(log application)"]
+        LE["LogEntry\n(PUT, DELETE, MERGE)"]
+    end
+
+    subgraph ErrorHandling["Error Handling"]
+        RES["Result&lt;T&gt;\n(success/failure)"]
+    end
+
+    TKVS --> KVS
+    KVS --> RDB
+    MGR --> RDB
+    RDB --> LDR
+    RDB --> CFG
+    CFG --> CM
+    CFG --> SM
+    RDB --> RS
+    RT --> KVS
+    RS --> LE
+    LE --> RT
+    RDB --> RES
+    TKVS --> RES
+    MGR --> RES
+```
+
+### Key Design Patterns
+
+- **Interface Segregation**: `KVStore` interface defines the contract; `RocksDBStore` implements it. Swap implementations without changing calling code.
+- **Builder Pattern**: `DatabaseConfig.builder(path)` for fluent, immutable configuration.
+- **Result Type (Railway-Oriented)**: All operations return `Result<T>` instead of throwing exceptions. Supports `map`, `flatMap`, `ifSuccess`, `ifFailure` for functional composition.
+- **Decorator Pattern**: `TypedKVStore<V>` wraps any `KVStore` with JSON serialization.
+- **Manager Pattern**: `KVStoreManager` manages lifecycle of multiple named databases.
+- **AutoCloseable**: All stores and managers implement `AutoCloseable` with shutdown hooks.
+
+### Data Flow
+
+```mermaid
+flowchart LR
+    App["Application"] -->|"String key, V value"| Typed["TypedKVStore"]
+    Typed -->|"serialize to JSON"| Jackson["Jackson\nObjectMapper"]
+    Jackson -->|"byte[] key, byte[] value"| Raw["RocksDBStore"]
+    Raw -->|"JNI"| RocksDB["RocksDB\nNative Engine"]
+    RocksDB --> WAL["Write-Ahead Log"]
+    RocksDB --> SST["SST Files\n(on disk)"]
+    WAL --> Source["ReplicationSource"]
+    Source -->|"LogEntry iterator"| Target["ReplicationTarget"]
+    Target -->|"apply"| Replica["Replica\nRocksDBStore"]
+```
+
+---
+
 ## Quick Start
 
 ### Basic Usage
@@ -34,528 +217,658 @@ Add the dependency to your `pom.xml`:
 import com.hitorro.kvstore.*;
 import com.hitorro.kvstore.config.*;
 
-// Create database configuration
+// Create configuration
 DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .compressionType(CompressionType.SNAPPY)
-        .storageMode(StorageMode.DISK)
-        .createIfMissing(true)
-        .build();
+    .compressionType(CompressionType.SNAPPY)
+    .createIfMissing(true)
+    .build();
 
-// Open the database
+// Open and use
 try (KVStore store = new RocksDBStore(config)) {
-    // Put a key-value pair
-    byte[] key = "myKey".getBytes();
-    byte[] value = "myValue".getBytes();
-    
-    Result<Void> putResult = store.put(key, value);
-    if (putResult.isSuccess()) {
-        System.out.println("Successfully stored data");
-    }
-    
-    // Get the value
-    Result<byte[]> getResult = store.get(key);
-    getResult.getValue().ifPresent(v -> {
-        System.out.println("Retrieved: " + new String(v));
-    });
-    
-    // Delete the key
-    store.delete(key);
+    store.put("myKey".getBytes(), "myValue".getBytes());
+
+    Result<byte[]> result = store.get("myKey".getBytes());
+    result.getValue().ifPresent(v ->
+        System.out.println("Retrieved: " + new String(v)));
+
+    store.delete("myKey".getBytes());
 }
 ```
 
-### Using TypedKVStore for Automatic Serialization
+### Using TypedKVStore
 
 ```java
-import com.hitorro.kvstore.*;
+record User(String id, String name, int age) {}
 
-// Define your data class
-class User {
-    public String id;
-    public String name;
-    public int age;
-    
-    // Constructors, getters, setters...
-}
+DatabaseConfig config = DatabaseConfig.builder("/path/to/users-db").build();
 
-// Create a typed store
-DatabaseConfig config = DatabaseConfig.builder("/path/to/users-db")
-        .build();
-        
 try (KVStore rawStore = new RocksDBStore(config);
      TypedKVStore<User> store = new TypedKVStore<>(rawStore, User.class)) {
-    
-    // Put a user
-    User user = new User();
-    user.id = "user123";
-    user.name = "Alice";
-    user.age = 30;
-    
-    store.put("user:user123", user);
-    
-    // Get the user
-    Result<User> result = store.get("user:user123");
-    result.getValue().ifPresent(u -> {
-        System.out.println("Retrieved user: " + u.name);
-    });
+
+    store.put("user:alice", new User("alice", "Alice", 30));
+
+    Result<User> result = store.get("user:alice");
+    result.getValue().ifPresent(u ->
+        System.out.println("Retrieved: " + u.name()));
 }
 ```
 
-## Configuration
+---
+
+## DatabaseConfig
+
+Immutable configuration with fluent builder:
+
+```java
+DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
+    .compressionType(CompressionType.ZSTD)
+    .storageMode(StorageMode.DISK)
+    .createIfMissing(true)
+    .blockCacheSize(64 * 1024 * 1024)       // 64 MB
+    .writeBufferSize(128 * 1024 * 1024)     // 128 MB
+    .maxWriteBufferNumber(4)
+    .blockSize(8 * 1024)                     // 8 KB
+    .bitsPerKey(10.0)                        // Bloom filter
+    .enableWAL(true)
+    .walDirectory("/path/to/wal")
+    .walTTLSeconds(3600)
+    .walSizeLimitMB(1024)
+    .syncWrites(false)
+    .enableTransactions(true)
+    .build();
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `path` | (required) | Database directory |
+| `compressionType` | SNAPPY | Compression algorithm |
+| `storageMode` | DISK | DISK (persistent) or MEMORY (volatile) |
+| `createIfMissing` | true | Create database if it doesn't exist |
+| `blockCacheSize` | 8 MB | LRU block cache size |
+| `writeBufferSize` | 64 MB | Memtable size before flush |
+| `maxWriteBufferNumber` | 3 | Max concurrent memtables |
+| `blockSize` | 4 KB | SST block size |
+| `bitsPerKey` | 10.0 | Bloom filter bits per key |
+| `enableWAL` | true | Write-Ahead Log (auto-disabled for MEMORY mode) |
+| `walDirectory` | null | Separate WAL directory (null = use db directory) |
+| `walTTLSeconds` | 0 | WAL file retention (0 = no TTL) |
+| `walSizeLimitMB` | 0 | WAL size limit (0 = unlimited) |
+| `syncWrites` | false | fsync each write (true = safer, slower) |
+| `enableTransactions` | false | Enable TransactionDB for ACID batches |
 
 ### Compression Types
 
-```java
-DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .compressionType(CompressionType.ZSTD)  // Best compression ratio
-        // .compressionType(CompressionType.LZ4)    // Very fast
-        // .compressionType(CompressionType.SNAPPY) // Balanced (default)
-        // .compressionType(CompressionType.NONE)   // No compression
-        .build();
+```mermaid
+quadrantChart
+    title Compression Trade-offs
+    x-axis Low Speed --> High Speed
+    y-axis Low Ratio --> High Ratio
+    ZSTD: [0.5, 0.9]
+    ZLIB: [0.35, 0.85]
+    LZ4HC: [0.4, 0.75]
+    Snappy: [0.8, 0.6]
+    LZ4: [0.9, 0.6]
+    None: [1.0, 0.1]
 ```
 
-### Memory vs Disk Storage
+| Type | Speed | Ratio | Best For |
+|------|-------|-------|----------|
+| `NONE` | -- | 1.0x | Testing, pre-compressed data |
+| `SNAPPY` | Very fast | ~1.4x | Default -- balanced speed and ratio |
+| `LZ4` | Fastest | ~1.4x | Write-heavy, latency-sensitive |
+| `LZ4HC` | Slow | ~1.7x | Read-heavy, space matters |
+| `ZSTD` | Medium | ~2.0x | Best ratio with acceptable speed |
+| `ZLIB` | Slow | ~2.0x | Legacy, similar to ZSTD |
+
+### Storage Modes
+
+| Mode | Persistence | WAL | Use Case |
+|------|-------------|-----|----------|
+| `DISK` | Yes | Enabled by default | Production, durable storage |
+| `MEMORY` | No | Disabled by default | Caching, testing, ephemeral data |
+
+---
+
+## Basic Operations
+
+### KVStore Interface
 
 ```java
-// Disk-based (default)
-DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .storageMode(StorageMode.DISK)
-        .build();
+// Put
+Result<Void> result = store.put(key, value);
 
-// In-memory (for caching or testing)
-DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .storageMode(StorageMode.MEMORY)
-        .build();
+// Put with key extractor
+store.put(product, p -> ("product:" + p.sku).getBytes(), p -> serialize(p));
+
+// Get
+Result<byte[]> result = store.get(key);
+
+// Delete
+Result<Void> result = store.delete(key);
+
+// Check state
+boolean open = store.isOpen();
+long seqNum = store.getLatestSequenceNumber();
 ```
 
-### Performance Tuning
-
-```java
-DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .blockCacheSize(64 * 1024 * 1024)      // 64MB block cache
-        .writeBufferSize(128 * 1024 * 1024)    // 128MB write buffer
-        .maxWriteBufferNumber(4)                // 4 write buffers
-        .blockSize(8 * 1024)                    // 8KB block size
-        .bitsPerKey(10.0)                       // Bloom filter bits per key
-        .build();
-```
-
-### WAL Configuration
-
-```java
-DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .enableWAL(true)
-        .walDirectory("/path/to/wal")          // Separate WAL directory
-        .syncWrites(false)                     // Async writes (faster)
-        // .syncWrites(true)                   // Sync writes (safer)
-        .build();
-```
+---
 
 ## Batch Operations
 
-### Non-Transactional Batch (Best-Effort)
+### Non-Transactional (Best-Effort)
+
+Uses `WriteBatch` internally for efficiency. May partially succeed.
 
 ```java
 // Batch put
 Map<byte[], byte[]> entries = new HashMap<>();
 entries.put("key1".getBytes(), "value1".getBytes());
 entries.put("key2".getBytes(), "value2".getBytes());
-entries.put("key3".getBytes(), "value3".getBytes());
-
 Result<Void> result = store.batchPut(entries, false);
 
 // Batch get
-List<byte[]> keys = Arrays.asList(
-    "key1".getBytes(),
-    "key2".getBytes(),
-    "key3".getBytes()
-);
-
+List<byte[]> keys = List.of("key1".getBytes(), "key2".getBytes());
 Result<List<byte[]>> values = store.batchGet(keys);
+
+// Batch delete
+store.batchDelete(List.of("key1".getBytes(), "key2".getBytes()), false);
 ```
 
-### Transactional Batch (All-or-Nothing)
+### Transactional (All-or-Nothing)
+
+Requires `enableTransactions(true)` in config. Uses `TransactionDB` with automatic rollback on failure.
 
 ```java
-// Enable transactions in config
 DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
-        .enableTransactions(true)
-        .build();
+    .enableTransactions(true)
+    .build();
 
 try (KVStore store = new RocksDBStore(config)) {
-    Map<byte[], byte[]> entries = new HashMap<>();
-    entries.put("key1".getBytes(), "value1".getBytes());
-    entries.put("key2".getBytes(), "value2".getBytes());
-    
-    // Transactional batch - all or nothing
-    Result<Void> result = store.batchPut(entries, true);
-    
-    if (result.isSuccess()) {
-        System.out.println("All entries committed");
-    } else {
-        System.out.println("Transaction rolled back: " + result.getError().orElse(""));
+    Map<byte[], byte[]> entries = Map.of(
+        "key1".getBytes(), "value1".getBytes(),
+        "key2".getBytes(), "value2".getBytes()
+    );
+
+    Result<Void> result = store.batchPut(entries, true);  // all-or-nothing
+    if (result.isFailure()) {
+        System.out.println("Rolled back: " + result.getError().orElse(""));
     }
 }
 ```
 
-## Streaming and Iteration
+```mermaid
+flowchart TD
+    Batch["batchPut(entries, transactional)"] --> Check{"transactional?"}
+    Check -->|false| WB["WriteBatch\n(best-effort)"]
+    Check -->|true| TX["Begin Transaction"]
+    TX --> Apply["Apply all entries"]
+    Apply --> Success{"All succeeded?"}
+    Success -->|yes| Commit["Commit"]
+    Success -->|no| Rollback["Rollback\n(all-or-nothing)"]
+    WB --> Done["Result"]
+    Commit --> Done
+    Rollback --> Done
+```
+
+---
+
+## Prefix Scanning & Streaming
+
+Design keys with prefixes for efficient range scanning. RocksDB stores keys in sorted order, so prefix scans are O(n) in the number of matching keys.
 
 ### Iterator Pattern
 
 ```java
-// Scan by prefix
-Iterator<byte[]> iterator = store.scanByPrefix("user:".getBytes());
-while (iterator.hasNext()) {
-    byte[] value = iterator.next();
-    System.out.println("Value: " + new String(value));
+// Values only
+Iterator<byte[]> iter = store.scanByPrefix("user:".getBytes());
+while (iter.hasNext()) {
+    System.out.println(new String(iter.next()));
 }
 
-// Scan with keys
-Iterator<Map.Entry<byte[], byte[]>> keyValueIterator = 
+// Key-value pairs
+Iterator<Map.Entry<byte[], byte[]>> iter =
     store.scanByPrefixWithKeys("user:".getBytes());
-while (keyValueIterator.hasNext()) {
-    Map.Entry<byte[], byte[]> entry = keyValueIterator.next();
-    System.out.println("Key: " + new String(entry.getKey()) + 
-                       ", Value: " + new String(entry.getValue()));
+while (iter.hasNext()) {
+    Map.Entry<byte[], byte[]> entry = iter.next();
+    System.out.println(new String(entry.getKey()) + " = " + new String(entry.getValue()));
 }
 ```
 
 ### Consumer Pattern
 
 ```java
-// Process values with a consumer
-store.consumePrefixValues("user:".getBytes(), value -> {
-    System.out.println("Processing: " + new String(value));
-});
+// Consume values
+store.consumePrefixValues("user:".getBytes(), value ->
+    System.out.println(new String(value)));
 
-// Process key-value pairs
-store.consumePrefixEntries("user:".getBytes(), entry -> {
-    String key = new String(entry.getKey());
-    String value = new String(entry.getValue());
-    System.out.println(key + " = " + value);
-});
+// Consume key-value pairs
+store.consumePrefixEntries("user:".getBytes(), entry ->
+    System.out.println(new String(entry.getKey()) + " = " + new String(entry.getValue())));
+
+// Consume specific keys
+store.consumeValues(List.of("key1".getBytes(), "key2".getBytes()),
+    value -> process(value));
 ```
 
 ### Java Stream API
 
 ```java
 // Stream values
-Stream<byte[]> valueStream = store.streamByPrefix("user:".getBytes());
-long count = valueStream
-        .map(bytes -> new String(bytes))
-        .filter(s -> s.contains("admin"))
-        .count();
+long adminCount = store.streamByPrefix("user:".getBytes())
+    .map(bytes -> new String(bytes))
+    .filter(s -> s.contains("admin"))
+    .count();
 
 // Stream key-value pairs
 store.streamByPrefixWithKeys("user:".getBytes())
-        .map(entry -> new String(entry.getKey()) + ": " + new String(entry.getValue()))
-        .forEach(System.out::println);
+    .map(e -> new String(e.getKey()) + ": " + new String(e.getValue()))
+    .forEach(System.out::println);
+
+// Stream specific keys
+Iterator<byte[]> values = store.streamValues(keys);
 ```
 
-## Prefix Queries
+### Access Pattern Comparison
 
-Design your keys with prefixes for efficient range scanning:
+```mermaid
+flowchart LR
+    Prefix["Prefix Scan"] --> Iterator["Iterator\n(explicit control,\nlazy evaluation)"]
+    Prefix --> Consumer["Consumer\n(callback,\nside effects)"]
+    Prefix --> Stream["Stream\n(functional chaining,\nlazy)"]
+    Iterator --> WithKeys["scanByPrefix\nscanByPrefixWithKeys"]
+    Consumer --> ConOps["consumePrefixValues\nconsumePrefixEntries"]
+    Stream --> StreamOps["streamByPrefix\nstreamByPrefixWithKeys"]
+```
+
+---
+
+## TypedKVStore
+
+Wraps any `KVStore` with automatic JSON serialization/deserialization via Jackson:
 
 ```java
-// Store data with hierarchical keys
-store.put("user:1".getBytes(), "Alice".getBytes());
-store.put("user:2".getBytes(), "Bob".getBytes());
-store.put("user:3".getBytes(), "Charlie".getBytes());
-store.put("product:1".getBytes(), "Laptop".getBytes());
-store.put("product:2".getBytes(), "Mouse".getBytes());
+// With default ObjectMapper
+TypedKVStore<User> store = new TypedKVStore<>(rawStore, User.class);
 
-// Scan all users
-Iterator<byte[]> users = store.scanByPrefix("user:".getBytes());
-
-// Scan all products
-Iterator<byte[]> products = store.scanByPrefix("product:".getBytes());
+// With custom ObjectMapper
+ObjectMapper mapper = new ObjectMapper()
+    .registerModule(new JavaTimeModule());
+TypedKVStore<User> store = new TypedKVStore<>(rawStore, User.class, mapper);
 ```
 
-### Key Design Best Practices
+### API (String keys, typed values)
 
-- Use consistent separators (`:`, `/`, `|`)
-- Order keys for range queries: `year:month:day:id`
-- Include entity type as prefix: `user:`, `order:`, `product:`
-- Lexicographically sortable components
+```java
+// CRUD
+store.put("user:alice", user);
+Result<User> result = store.get("user:alice");
+store.delete("user:alice");
+
+// Put with key extractor
+store.put(user, u -> "user:" + u.id());
+
+// Batch operations
+store.batchPut(Map.of("user:alice", alice, "user:bob", bob), false);
+Result<List<User>> users = store.batchGet(List.of("user:alice", "user:bob"));
+store.batchDelete(List.of("user:alice"), false);
+
+// Prefix scanning
+Iterator<User> iter = store.scanByPrefix("user:");
+Iterator<Map.Entry<String, User>> iter = store.scanByPrefixWithKeys("user:");
+
+// Consumers
+store.consumePrefixValues("user:", user -> process(user));
+store.consumePrefixEntries("user:", entry -> process(entry));
+
+// Streams
+Stream<User> users = store.streamByPrefix("user:");
+Stream<Map.Entry<String, User>> entries = store.streamByPrefixWithKeys("user:");
+
+// Access underlying store
+KVStore raw = store.getUnderlyingStore();
+```
+
+Serialization failures are captured in `Result.failure()` -- no exceptions thrown from JSON operations.
+
+---
+
+## Multi-Database Management
+
+`KVStoreManager` manages multiple named databases with lifecycle control:
+
+```java
+KVStoreManager manager = new KVStoreManager();
+
+// Open databases
+manager.openDatabase("users", DatabaseConfig.builder("/path/to/users").build());
+manager.openDatabase("products", DatabaseConfig.builder("/path/to/products").build());
+manager.openDatabase("orders", DatabaseConfig.builder("/path/to/orders").build());
+
+// Use a database
+Result<KVStore> db = manager.getDatabase("users");
+db.getValue().ifPresent(store -> store.put(key, value));
+
+// Query
+manager.isDatabaseOpen("users");        // true
+manager.listDatabases();                 // ["users", "products", "orders"]
+manager.getDatabaseCount();              // 3
+
+// Close individual or all
+manager.closeDatabase("orders");
+manager.closeAll();                      // closes remaining, prevents new operations
+```
+
+Thread-safe via `ConcurrentHashMap`. Registers a JVM shutdown hook for cleanup. Implements `AutoCloseable`.
+
+---
+
+## Result Pattern
+
+All operations return `Result<T>` for exception-free error handling:
+
+```mermaid
+flowchart LR
+    Op["store.get(key)"] --> Result["Result&lt;byte[]&gt;"]
+    Result --> Success{"isSuccess?"}
+    Success -->|yes| Value["getValue()\n→ Optional&lt;T&gt;"]
+    Success -->|no| Error["getError()\n→ Optional&lt;String&gt;"]
+    Value --> Map["map(fn)\n→ Result&lt;U&gt;"]
+    Value --> FlatMap["flatMap(fn)\n→ Result&lt;U&gt;"]
+    Value --> IfSuccess["ifSuccess(consumer)\n→ chainable"]
+    Error --> IfFailure["ifFailure(consumer)\n→ chainable"]
+    Value --> GetOrThrow["getOrThrow()\n→ T or exception"]
+    Value --> GetOrDefault["getOrDefault(T)\n→ T"]
+```
+
+### Usage Examples
+
+```java
+// Check and access
+Result<byte[]> result = store.get(key);
+if (result.isSuccess()) {
+    byte[] value = result.getValue().get();
+} else {
+    System.err.println("Error: " + result.getError().orElse("unknown"));
+}
+
+// Functional style (chainable)
+result
+    .ifSuccess(value -> System.out.println("Got: " + new String(value)))
+    .ifFailure(error -> System.err.println("Error: " + error));
+
+// Transform
+Result<String> stringResult = result.map(bytes -> new String(bytes));
+
+// Chain operations
+Result<Integer> length = result.flatMap(bytes ->
+    bytes.length > 0 ? Result.success(bytes.length) : Result.failure("empty"));
+
+// Fallbacks
+byte[] value = result.getOrDefault(new byte[0]);
+byte[] value = result.getOrThrow();  // throws if failure
+```
+
+### Creating Results
+
+```java
+Result.success(value);
+Result.failure("error message");
+Result.failure(exception);
+```
+
+---
 
 ## Replication
 
-The module supports WAL-based replication for primary-replica setups.
+The module supports WAL-based replication for primary-replica setups. The replication API provides primitives (WAL tailing and log application); network transport is your responsibility.
 
-### Setting Up a Primary Database
+```mermaid
+flowchart LR
+    subgraph Primary
+        PDB["RocksDBStore\n(primary)"]
+        WAL["Write-Ahead Log"]
+        RS["ReplicationSource"]
+    end
+
+    subgraph Transport["Network Transport\n(user-provided)"]
+        HTTP["HTTP / gRPC /\nKafka / TCP"]
+    end
+
+    subgraph Replica
+        RT["ReplicationTarget"]
+        RDB["RocksDBStore\n(replica)"]
+    end
+
+    PDB --> WAL
+    WAL --> RS
+    RS -->|"Iterator&lt;LogEntry&gt;"| HTTP
+    HTTP -->|"LogEntry"| RT
+    RT -->|"apply"| RDB
+```
+
+### Setting Up the Primary
 
 ```java
-// Configure primary with WAL archival
 DatabaseConfig primaryConfig = DatabaseConfig.builder("/path/to/primary")
-        .enableWAL(true)
-        .walTTLSeconds(3600)          // Keep WAL files for 1 hour
-        .walSizeLimitMB(1024)         // Keep up to 1GB of WAL
-        .build();
+    .enableWAL(true)
+    .walTTLSeconds(3600)          // keep WAL files for 1 hour
+    .walSizeLimitMB(1024)         // keep up to 1 GB of WAL
+    .build();
 
 RocksDBStore primary = new RocksDBStore(primaryConfig);
+ReplicationSource source = primary.createReplicationSource();
 
-// Create replication source
-ReplicationSource replicationSource = primary.createReplicationSource();
-
-// Enable WAL archival to prevent deletion
-replicationSource.enableArchival(3600, 1024);
+// Optionally enable archival to prevent WAL deletion
+source.enableArchival(3600, 1024);
 ```
 
-### Setting Up a Replica Database
+### Setting Up the Replica
 
 ```java
-// Configure replica database
-DatabaseConfig replicaConfig = DatabaseConfig.builder("/path/to/replica")
-        .build();
-
+DatabaseConfig replicaConfig = DatabaseConfig.builder("/path/to/replica").build();
 KVStore replica = new RocksDBStore(replicaConfig);
-ReplicationTarget replicationTarget = new ReplicationTarget(replica);
+ReplicationTarget target = new ReplicationTarget(replica);
 
-// Get the starting sequence number
+// Start from replica's current sequence
 long startSeq = replica.getLatestSequenceNumber();
 
-// Tail the WAL from the primary
-Iterator<LogEntry> logIterator = replicationSource.tailFrom(startSeq);
-
-// Apply log entries to replica
-while (logIterator.hasNext()) {
-    LogEntry entry = logIterator.next();
-    Result<Void> result = replicationTarget.applyLogEntry(entry);
-    
+// Apply log entries
+Iterator<LogEntry> entries = source.tailFrom(startSeq);
+while (entries.hasNext()) {
+    LogEntry entry = entries.next();
+    Result<Void> result = target.applyLogEntry(entry);
     if (result.isFailure()) {
-        System.err.println("Failed to apply entry: " + result.getError().orElse(""));
+        System.err.println("Failed: " + result.getError().orElse(""));
     }
 }
-
-// Save checkpoint for resuming replication
-long lastAppliedSeq = replicationTarget.getLastAppliedSequence();
 ```
 
-### Batch Replication for Better Performance
+### Batch Replication
 
 ```java
 List<LogEntry> batch = new ArrayList<>();
-Iterator<LogEntry> logIterator = replicationSource.tailFrom(startSeq);
+Iterator<LogEntry> entries = source.tailFrom(startSeq);
 
-while (logIterator.hasNext()) {
-    batch.add(logIterator.next());
-    
-    // Apply in batches of 100
+while (entries.hasNext()) {
+    batch.add(entries.next());
     if (batch.size() >= 100) {
-        replicationTarget.applyBatch(batch);
+        target.applyBatch(batch);   // optimized: collects PUTs, batch-applies
         batch.clear();
     }
 }
-
-// Apply remaining entries
 if (!batch.isEmpty()) {
-    replicationTarget.applyBatch(batch);
+    target.applyBatch(batch);
 }
 ```
 
-### Continuous Replication Loop
+### Checkpoint and Resume
+
+```mermaid
+sequenceDiagram
+    participant Primary
+    participant Source as ReplicationSource
+    participant Target as ReplicationTarget
+    participant Replica
+
+    Primary->>Source: write data
+    Source->>Target: tailFrom(0) → LogEntry stream
+    Target->>Replica: apply entries
+    Note over Target: checkpoint = getLastAppliedSequence()
+
+    Note over Primary,Replica: --- System restart ---
+
+    Target->>Target: setLastAppliedSequence(checkpoint)
+    Primary->>Source: more writes
+    Source->>Target: tailFrom(checkpoint) → resume
+    Target->>Replica: apply remaining entries
+    Note over Primary,Replica: Consistency achieved
+```
+
+```java
+// Save checkpoint
+long checkpoint = target.getLastAppliedSequence();
+// ... persist checkpoint to file/database ...
+
+// After restart, restore checkpoint
+ReplicationTarget newTarget = new ReplicationTarget(replica);
+newTarget.setLastAppliedSequence(checkpoint);
+
+// Resume from where we left off
+Iterator<LogEntry> entries = source.tailFrom(checkpoint);
+while (entries.hasNext()) {
+    newTarget.applyLogEntry(entries.next());
+}
+```
+
+### Continuous Replication Service
 
 ```java
 class ReplicationService implements Runnable {
     private final ReplicationSource source;
     private final ReplicationTarget target;
     private volatile boolean running = true;
-    
+
     public ReplicationService(ReplicationSource source, ReplicationTarget target) {
         this.source = source;
         this.target = target;
     }
-    
+
     @Override
     public void run() {
         long currentSeq = target.getLastAppliedSequence();
-        
+
         while (running) {
             Iterator<LogEntry> entries = source.tailFrom(currentSeq);
-            
+
             while (entries.hasNext() && running) {
                 LogEntry entry = entries.next();
                 Result<Void> result = target.applyLogEntry(entry);
-                
                 if (result.isSuccess()) {
                     currentSeq = entry.getSequenceNumber();
-                } else {
-                    // Handle error, maybe retry
-                    System.err.println("Replication error: " + 
-                                       result.getError().orElse(""));
                 }
             }
-            
-            // Sleep before checking for new entries
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                running = false;
-            }
+
+            try { Thread.sleep(100); } catch (InterruptedException e) { running = false; }
         }
     }
-    
-    public void stop() {
-        running = false;
-    }
-}
 
-// Usage
-ReplicationService service = new ReplicationService(replicationSource, replicationTarget);
-new Thread(service).start();
+    public void stop() { running = false; }
+}
 ```
 
-### Network Transport Considerations
+### LogEntry Types
 
-The replication API provides the primitives (WAL tailing and log application), but network transport is outside the scope of this module. You can implement network transport using:
+| Type | Description | Value |
+|------|-------------|-------|
+| `PUT` | Insert or update | Key + value |
+| `DELETE` | Remove key | Key only (value is null) |
+| `MERGE` | Merge operation | Key + value (treated as PUT on replica) |
 
-- **HTTP/REST**: Serialize LogEntry objects as JSON and send via HTTP
-- **gRPC**: Define protobuf messages for LogEntry and stream
-- **Kafka**: Use Kafka as a replication log
-- **Custom TCP**: Implement a custom protocol for log shipping
+### Network Transport
 
-Example with HTTP (conceptual):
+The replication API provides primitives only. Implement transport using:
+
+- **HTTP/REST**: Serialize `LogEntry` as JSON, expose `/replication/entries?since=N` endpoint
+- **gRPC**: Define protobuf messages for `LogEntry` and stream
+- **Kafka**: Publish `LogEntry` to a topic, consume on replica
+- **Custom TCP**: Implement a binary protocol for log shipping
+
+---
+
+## Key Design Best Practices
 
 ```java
-// Primary side - expose endpoint
-@GET
-@Path("/replication/entries")
-public List<LogEntry> getLogEntries(@QueryParam("since") long sequenceNumber) {
-    Iterator<LogEntry> iter = replicationSource.tailFrom(sequenceNumber);
-    List<LogEntry> entries = new ArrayList<>();
-    
-    while (iter.hasNext() && entries.size() < 1000) {
-        entries.add(iter.next());
-    }
-    
-    return entries;
-}
+// Hierarchical keys for efficient prefix scanning
+store.put("user:1".getBytes(), alice);
+store.put("user:2".getBytes(), bob);
+store.put("order:user:1:1001".getBytes(), order1);
+store.put("order:user:1:1002".getBytes(), order2);
 
-// Replica side - poll for entries
-long lastSeq = replicationTarget.getLastAppliedSequence();
-List<LogEntry> entries = httpClient.get("/replication/entries?since=" + lastSeq);
+// Scan all users
+Iterator<byte[]> users = store.scanByPrefix("user:".getBytes());
 
-for (LogEntry entry : entries) {
-    replicationTarget.applyLogEntry(entry);
-}
+// Scan orders for user 1
+Iterator<byte[]> orders = store.scanByPrefix("order:user:1:".getBytes());
 ```
 
-## Advanced Features
+**Guidelines:**
+- Use consistent separators (`:`, `/`, `|`)
+- Include entity type as prefix: `user:`, `order:`, `product:`
+- Order components for range queries: `year:month:day:id`
+- Keep key components lexicographically sortable (zero-pad numbers if needed)
 
-### Key Extraction Functions
+---
 
-Store objects and let the library extract the key:
+## Configuration Reference
+
+### Full DatabaseConfig Builder
 
 ```java
-class Product {
-    String sku;
-    String name;
-    double price;
-}
+DatabaseConfig config = DatabaseConfig.builder("/path/to/db")
+    // Storage
+    .storageMode(StorageMode.DISK)              // DISK or MEMORY
+    .createIfMissing(true)                       // create DB if not exists
+    .compressionType(CompressionType.SNAPPY)     // NONE, SNAPPY, LZ4, LZ4HC, ZSTD, ZLIB
 
-Product product = new Product();
-product.sku = "LAPTOP-123";
-product.name = "Gaming Laptop";
-product.price = 1299.99;
+    // Memory & Cache
+    .blockCacheSize(8 * 1024 * 1024)            // LRU block cache (8 MB)
+    .writeBufferSize(64 * 1024 * 1024)          // memtable size (64 MB)
+    .maxWriteBufferNumber(3)                     // concurrent memtables
+    .blockSize(4 * 1024)                         // SST block size (4 KB)
+    .bitsPerKey(10.0)                            // Bloom filter (10 bits/key)
 
-// Use key extraction function
-store.put(
-    product,
-    p -> ("product:" + p.sku).getBytes(),  // Key extractor
-    p -> serializeToJson(p)                 // Value serializer
-);
+    // WAL & Durability
+    .enableWAL(true)                             // write-ahead log
+    .walDirectory("/path/to/wal")                // separate WAL dir
+    .walTTLSeconds(3600)                         // WAL retention (seconds)
+    .walSizeLimitMB(1024)                        // WAL max size (MB)
+    .syncWrites(false)                           // fsync per write
+
+    // Transactions
+    .enableTransactions(false)                   // TransactionDB for ACID
+    .build();
 ```
 
-### Multiple Database Management
+---
 
-```java
-KVStoreManager manager = new KVStoreManager();
+## Performance Tuning
 
-// Open multiple databases
-Result<KVStore> usersDb = manager.openDatabase("users",
-    DatabaseConfig.builder("/path/to/users").build());
+| Goal | Parameter | Recommendation |
+|------|-----------|---------------|
+| **Faster reads** | `blockCacheSize` | Increase (64-256 MB) |
+| **Faster writes** | `syncWrites` | `false` (async, with durability trade-off) |
+| **Higher write throughput** | `writeBufferSize` | Increase (128-256 MB) |
+| **More concurrent writes** | `maxWriteBufferNumber` | Increase (4-6) |
+| **Better compression** | `compressionType` | `ZSTD` (best ratio) |
+| **Faster compression** | `compressionType` | `LZ4` (fastest) |
+| **Fewer read false positives** | `bitsPerKey` | Increase (12-16) |
+| **Batch efficiency** | Use `batchPut`/`batchGet` | Always batch when possible |
+| **Prefix scan performance** | Key design | Use consistent prefixes |
+| **Replication lag** | Batch size in replication | Larger batches (100-1000) |
+| **Transaction overhead** | `enableTransactions` | Only when ACID required |
 
-Result<KVStore> productsDb = manager.openDatabase("products",
-    DatabaseConfig.builder("/path/to/products").build());
-
-Result<KVStore> ordersDb = manager.openDatabase("orders",
-    DatabaseConfig.builder("/path/to/orders").build());
-
-// List all open databases
-List<String> databases = manager.listDatabases();
-System.out.println("Open databases: " + databases);
-
-// Get a specific database
-Result<KVStore> db = manager.getDatabase("users");
-
-// Close a specific database
-manager.closeDatabase("users");
-
-// Close all databases
-manager.closeAll();
-```
-
-### Result Pattern for Error Handling
-
-```java
-Result<byte[]> result = store.get(key);
-
-// Check success/failure
-if (result.isSuccess()) {
-    byte[] value = result.getValue().get();
-    // Process value
-} else {
-    String error = result.getError().orElse("Unknown error");
-    System.err.println("Error: " + error);
-}
-
-// Functional style
-result
-    .ifSuccess(value -> System.out.println("Got: " + new String(value)))
-    .ifFailure(error -> System.err.println("Error: " + error));
-
-// Map and flatMap
-Result<String> stringResult = result.map(bytes -> new String(bytes));
-
-Result<Integer> lengthResult = result.flatMap(bytes -> {
-    if (bytes.length > 0) {
-        return Result.success(bytes.length);
-    } else {
-        return Result.failure("Empty value");
-    }
-});
-```
-
-## Testing
-
-Run tests with Maven:
-
-```bash
-cd hitorro-kvstore
-mvn test
-```
-
-## Performance Tips
-
-1. **Use Batch Operations**: Batch puts/gets are significantly faster than individual operations
-2. **Choose Appropriate Compression**: LZ4 for speed, ZSTD for compression ratio, Snappy for balance
-3. **Tune Cache Sizes**: Larger block cache improves read performance
-4. **Async Writes**: Set `syncWrites(false)` for better write throughput (with durability trade-off)
-5. **Prefix Scanning**: Design keys with prefixes for efficient range queries
-6. **Use Transactions Sparingly**: Only use transactional batches when atomicity is required
-7. **Bloom Filters**: Higher `bitsPerKey` reduces false positives in read queries
-
-## Dependencies
-
-- RocksDB 10.4.2 (latest stable)
-- Jackson 2.18.2 (JSON serialization)
-- Log4j 1.2.17 (logging)
-- JUnit Jupiter 5.11.4 (testing)
-- AssertJ 3.27.3 (test assertions)
+---
 
 ## License
 
-Part of the Hitorro project.
-
-## Contributing
-
-Contributions are welcome! Please ensure tests pass before submitting PRs.
+Part of the Hitorro project. MIT License -- Copyright (c) 2006-2025 Chris Collins.
