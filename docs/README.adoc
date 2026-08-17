@@ -1,0 +1,297 @@
+= HiTorro KV Store — RocksDB with a Sink-friendly API
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: rouge
+
+`hitorro-kvstore` is a thin, typed façade over RocksDB plus
+`Sink<JsonNode>` + `Iterator<JsonNode>` adapters that let any Java
+app treat a RocksDB store as either a durable KV OR a streaming
+row destination — no pipeline framework required.
+
+Related:
+xref:../../hitorro-streams/docs/README.adoc[Streams / Sinks] ·
+xref:../../hitorro-retrieval/docs/retrieval-pipeline.adoc[Retrieval] ·
+xref:../../hitorro-mesh-pipelines/docs/pipeline-framework.adoc[Pipeline framework]
+
+== What's in the module
+
+[cols="2,3,3", options="header"]
+|===
+| Class                                | Purpose                                                              | Package
+| `KVStore`                            | Untyped byte-array interface (get/put/batch/scan)                    | `com.hitorro.kvstore`
+| `TypedKVStore<T>`                    | Typed view — serializes T via caller-provided key/value functions    | `com.hitorro.kvstore`
+| `RocksDBStore`                       | Standard read/write RocksDB implementation                           | `com.hitorro.kvstore`
+| `KVStoreManager`                     | Named-store registry (open, get, close)                              | `com.hitorro.kvstore`
+| `readonly.ReadOnlyKvStore`           | Read-only follower via `RocksDB.openAsSecondary` — no lock contention with a writer | `com.hitorro.kvstore.readonly`
+| `sinks.kvstore.KvStoreSink`          | `Sink<JsonNode>` — puts each row keyed by a dotted-path expression   | `com.hitorro.util.core.iterator.sinks.kvstore`
+| `sinks.kvstore.RocksDbSharedRegistry`| Refcounted handle pool — one open DB per JVM shared by sinks/sources | `com.hitorro.util.core.iterator.sinks.kvstore`
+| `sources.kvstore.KvStoreSource`      | `Iterator<JsonNode>` — reads every value from a named KV store       | `com.hitorro.util.core.iterator.sources.kvstore`
+| `replication.*`                      | WAL-based replication primitives                                     | `com.hitorro.kvstore.replication`
+|===
+
+== Standalone use
+
+**As a KV store**:
+
+[source,java]
+----
+import com.hitorro.kvstore.RocksDBStore;
+import com.hitorro.kvstore.Result;
+
+try (var kv = new RocksDBStore(Path.of("./data/mykv"))) {
+    kv.put("user:42".getBytes(), "{\"id\":42,\"name\":\"Alice\"}".getBytes());
+
+    Result<byte[]> r = kv.get("user:42".getBytes());
+    if (r.isSuccess() && r.getValue().isPresent()) {
+        System.out.println(new String(r.getValue().get()));
+    }
+
+    // Prefix scan
+    try (var it = kv.scanByPrefix("user:".getBytes())) {
+        while (it.hasNext()) System.out.println(new String(it.next()));
+    }
+}
+----
+
+**As a `Sink<JsonNode>` in your own ETL pipeline**:
+
+[source,java]
+----
+import com.hitorro.util.core.iterator.sinks.kvstore.KvStoreSink;
+
+// Writes rows keyed by row.id.id ("dotted path") to <home>/kv/articles/
+try (var sink = new KvStoreSink("articles", "id.id", Path.of("./pipeline-home"))) {
+    sink.start();
+    for (JsonNode article : incomingArticles) {
+        sink.add(article);
+    }
+    System.out.println("wrote " + sink.count() + " articles");
+}
+----
+
+**Reading back via `KvStoreSource`**:
+
+[source,java]
+----
+import com.hitorro.util.core.iterator.sources.kvstore.KvStoreSource;
+
+try (var source = new KvStoreSource("articles", Path.of("./pipeline-home"))) {
+    while (source.hasNext()) {
+        JsonNode row = source.next();
+        // do something with each stored article
+    }
+}
+----
+
+Both use `RocksDbSharedRegistry` under the hood, so a sink + source
+sharing the same physical DB in the same JVM won't fight the exclusive
+lock RocksDB imposes.
+
+== Read-only follower — `ReadOnlyKvStore`
+
+Use when your reader lifecycle is longer than your writer's commit
+cadence and both share a filesystem. Common pattern: a pipeline job
+writes into `./kv/articles/`; a fleet-retrieval service serves fetches
+from the same directory concurrently. Standard `RocksDB.open` throws
+`LockException` — `openAsSecondary` doesn't fight the writer:
+
+[source,java]
+----
+import com.hitorro.kvstore.readonly.ReadOnlyKvStore;
+
+Path primary   = Path.of("./kv/articles");        // writer owns this
+Path secondary = Path.of("./tmp/kv-follower");    // reader's private LOG follower
+
+try (var reader = new ReadOnlyKvStore(primary, secondary)) {
+    Result<byte[]> r = reader.get("articles/a1".getBytes());
+    // reader.get() calls tryCatchUpWithPrimary() so writes since the
+    // last read are visible.
+}
+----
+
+All write operations throw:
+
+[source]
+----
+IllegalStateException: read-only RocksDB (openAsSecondary) — the primary
+writer owns this KV
+----
+
+== Spring Boot integration
+
+Register the store as a bean; other services inject and reuse:
+
+[source,java]
+----
+@Configuration
+public class KvConfig {
+
+    @Bean(destroyMethod = "close")
+    public RocksDBStore articlesKv(@Value("${articles.kv.path}") String path) {
+        return new RocksDBStore(Path.of(path));
+    }
+
+    @Bean(destroyMethod = "close")
+    @ConditionalOnProperty("app.retrieval.shared")
+    public ReadOnlyKvStore articlesKvReader(
+            @Value("${articles.kv.path}") String primary,
+            @Value("${articles.kv.follower}") String secondary) throws Exception {
+        return new ReadOnlyKvStore(Path.of(primary), Path.of(secondary));
+    }
+}
+
+@RestController
+@RequestMapping("/api/articles")
+public class ArticleController {
+
+    private final KVStore store;
+    public ArticleController(@Qualifier("articlesKvReader") KVStore store) {
+        this.store = store;
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<byte[]> fetch(@PathVariable("id") String id) {
+        var r = store.get(id.getBytes());
+        if (r.isSuccess() && r.getValue().isPresent()) {
+            return ResponseEntity.ok(r.getValue().get());
+        }
+        return ResponseEntity.notFound().build();
+    }
+}
+----
+
+The same pattern powers `hitorro-fleet-retrieval` — see its
+`FleetKvService`.
+
+== Mesh pipeline usage (YAML config)
+
+[source,yaml]
+----
+sinks:
+  # Write each row keyed by the value at row.id.id
+  - {kind: kvstore, name: articles, keyExpr: "id.id"}
+----
+
+Reads via:
+
+[source,yaml]
+----
+source: {kind: kvstore, name: articles}
+----
+
+Both dispatch through `hitorro-mesh-pipelines-kvstore` which is just
+ServiceLoader glue — the actual `KvStoreSink` / `KvStoreSource`
+implementations live here in `hitorro-kvstore` and are reusable
+outside mesh.
+
+== Cross-process federation: RemoteKvStore + CompositeKvStore
+
+For read-only cross-process access (typical: driver federates across N
+fleet-retrieval instances, each owning its shard of a KV), the
+`com.hitorro.kvstore.remote` package ships two classes that mirror the
+`RemoteSearchProvider` / `CompositeSearchProvider` pair from
+`hitorro-retrieval`.
+
+=== `RemoteKvStore` — HTTP client implementing `KVStore`
+
+Wraps one remote fleet-retrieval's KV via two wire endpoints:
+
+* `GET /api/retrieval/documents/{indexName}/{key}` — key lookup
+* `GET /api/retrieval/kv/{indexName}/scan?prefix=…&limit=…` — prefix scan (NDJson response, one `{"key":..., "value":...}` per line)
+
+[source,java]
+----
+import com.hitorro.kvstore.remote.RemoteKvStore;
+
+try (var kv = new RemoteKvStore("http://fleet-retrieval-0.fleet:8087", "articles")) {
+    var r = kv.get("articles/a1".getBytes());
+    if (r.isSuccess() && r.getValue().isPresent()) {
+        System.out.println(new String(r.getValue().get()));
+    }
+
+    // Prefix scan — merged via NDJson streaming from the fleet
+    for (var it = kv.scanByPrefixWithKeys("articles/".getBytes()); it.hasNext(); ) {
+        var e = it.next();
+        System.out.println(new String(e.getKey()) + " → " + new String(e.getValue()));
+    }
+}
+----
+
+Read-only — write ops throw with a clear message pointing at "the primary
+pipeline writer owns the physical KV." Optional scan page size via
+`setScanPageLimit(int)` (default 10 000 entries per request).
+
+=== `CompositeKvStore` — parallel fan-out first-match
+
+Takes N `KVStore`s (typically a mix of local `ReadOnlyKvStore` +
+remote `RemoteKvStore`s), runs `get(key)` in parallel via
+`CompletableFuture`, returns the first non-null match:
+
+[source,java]
+----
+import com.hitorro.kvstore.remote.CompositeKvStore;
+import com.hitorro.kvstore.remote.RemoteKvStore;
+import com.hitorro.kvstore.readonly.ReadOnlyKvStore;
+
+// Local read + N remote fleets — one federated view.
+List<KVStore> stores = new ArrayList<>();
+stores.add(new ReadOnlyKvStore(Path.of("./kv/articles"), Path.of("./tmp/kv-sec")));
+for (String fleetUrl : discoveredFleets) {
+    stores.add(new RemoteKvStore(fleetUrl, "articles"));
+}
+try (var federated = new CompositeKvStore(stores)) {
+    var v = federated.get("articles/a1".getBytes());
+    // ...
+}
+----
+
+Prefix scans merge across delegates that support them (delegates that
+throw `UnsupportedOperationException` are silently skipped — safe to
+mix `RemoteKvStore` variants against older fleets that don't expose
+the scan endpoint yet). Writes throw — cross-fleet writes need explicit
+key-range routing, not fan-out.
+
+**Mesh driver auto-wiring** — the `hitorro-mesh-driver-app` module wires
+a `FederatedKvService` bean over the same health-filtered
+`FleetEndpointRegistry` used for search federation:
+
+* `GET /mesh/retrieval/federated/kv/{index}/{key}` — first-match fetch
+* `GET /mesh/retrieval/federated/kv/{index}/scan?prefix=…` — merged NDJson scan
+
+== Exactly-once with `addIdempotent`
+
+`KvStoreSink` overrides `Sink.addIdempotent(taskId, seq, row)` — it
+tracks the highest `seq` seen per `taskId` and skips retries that
+re-play earlier rows. Callers driving RocksDB from a retry-aware
+message queue (mesh pipeline scheduler, Kafka consumer, ...) call
+`addIdempotent`; direct callers use plain `add` for at-least-once
+semantics.
+
+[source,java]
+----
+try (var sink = new KvStoreSink("events", "id", home)) {
+    sink.start();
+    // Producer with retries — pass a stable (taskId, seq) so replay is safe
+    for (Event e : upstream) {
+        sink.addIdempotent(e.taskId(), e.sequence(), e.toJson());
+    }
+}
+----
+
+== Configuration
+
+[cols="2,4", options="header"]
+|===
+| Env / system property   | Effect
+| `HITORRO_KV_HOME`       | Base directory for named stores (default: `./data/kvstore/`)
+| `-Drocksdb.log.level`   | RocksDB logging verbosity (`INFO_LEVEL`, `DEBUG_LEVEL`, ...)
+|===
+
+== Where to read more
+
+* Source: `hitorro-kvstore/src/main/java/`
+* xref:../../hitorro-streams/docs/README.adoc[Streams / Sinks] — the Sink&lt;T&gt; contract
+* xref:../../hitorro-retrieval/docs/retrieval-pipeline.adoc[Retrieval Pipeline] — DocumentRetriever pulls full docs from a KVStore
+* xref:../../hitorro-mesh-pipelines/docs/pipeline-framework.adoc[Pipeline Framework] — how kvstore fits into DAG jobs
+* RocksDB Java API https://javadoc.io/doc/org.rocksdb/rocksdbjni/latest/index.html[docs]
