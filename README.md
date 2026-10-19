@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Hitorro Kvstore logo" width="180">
+</p>
+
 # Hitorro KVStore
 
 A high-performance, feature-rich RocksDB wrapper for Java 21+ providing multiple access patterns, WAL-based replication, type-safe serialization, and flexible configuration options.
