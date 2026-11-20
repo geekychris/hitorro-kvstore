@@ -3,10 +3,12 @@
  */
 package com.hitorro.util.core.iterator.sources.kvstore;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.hitorro.util.json.JsonMappers;
 import com.hitorro.util.core.iterator.sinks.kvstore.RocksDbSharedRegistry;
 import org.rocksdb.RocksIterator;
+import tools.jackson.core.JacksonException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -24,7 +26,7 @@ import java.util.Iterator;
  */
 public final class KvStoreSource implements Iterator<JsonNode>, AutoCloseable {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.json();
 
     private final RocksDbSharedRegistry.Entry entry;
     private final RocksIterator it;
@@ -49,7 +51,7 @@ public final class KvStoreSource implements Iterator<JsonNode>, AutoCloseable {
             JsonNode row = JSON.readTree(v);
             it.next();
             return row;
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("bad kv value: " + e.getMessage(), e);
         }
     }

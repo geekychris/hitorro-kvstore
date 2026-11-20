@@ -3,9 +3,10 @@
  */
 package com.hitorro.util.core.iterator.sinks.kvstore;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.hitorro.util.json.JsonMappers;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class KvStoreSinkTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.json();
 
     // -------------------------------------------------- Basic write + key
 
@@ -49,7 +50,7 @@ class KvStoreSinkTest {
             java.util.List<JsonNode> read = new java.util.ArrayList<>();
             while (src.hasNext()) read.add(src.next());
             assertThat(read).hasSize(2);
-            assertThat(read).extracting(r -> r.get("iso3").asText())
+            assertThat(read).extracting(r -> r.get("iso3").asString())
                     .containsExactlyInAnyOrder("USA", "CHN");
         }
     }
@@ -71,7 +72,7 @@ class KvStoreSinkTest {
             byte[] value = entry.db.get("alice@example.com".getBytes(StandardCharsets.UTF_8));
             assertThat(value).isNotNull();
             JsonNode stored = JSON.readTree(value);
-            assertThat(stored.get("user").get("name").asText()).isEqualTo("Alice");
+            assertThat(stored.get("user").get("name").asString()).isEqualTo("Alice");
         } finally {
             RocksDbSharedRegistry.release(entry);
         }
@@ -123,7 +124,7 @@ class KvStoreSinkTest {
         var entry = RocksDbSharedRegistry.acquire("s", home.resolve("kv").resolve("s"));
         try {
             byte[] v = entry.db.get("k".getBytes(StandardCharsets.UTF_8));
-            assertThat(JSON.readTree(v).get("v").asText()).isEqualTo("second");
+            assertThat(JSON.readTree(v).get("v").asString()).isEqualTo("second");
         } finally {
             RocksDbSharedRegistry.release(entry);
         }
@@ -148,7 +149,7 @@ class KvStoreSinkTest {
         var entry = RocksDbSharedRegistry.acquire("s", home.resolve("kv").resolve("s"));
         try {
             byte[] v = entry.db.get("k".getBytes(StandardCharsets.UTF_8));
-            assertThat(JSON.readTree(v).get("v").asText()).isEqualTo("first");
+            assertThat(JSON.readTree(v).get("v").asString()).isEqualTo("first");
         } finally {
             RocksDbSharedRegistry.release(entry);
         }
@@ -168,7 +169,7 @@ class KvStoreSinkTest {
         var entry = RocksDbSharedRegistry.acquire("s", home.resolve("kv").resolve("s"));
         try {
             byte[] v = entry.db.get("k".getBytes(StandardCharsets.UTF_8));
-            assertThat(JSON.readTree(v).get("v").asText()).isEqualTo("three");
+            assertThat(JSON.readTree(v).get("v").asString()).isEqualTo("three");
         } finally {
             RocksDbSharedRegistry.release(entry);
         }
@@ -187,7 +188,7 @@ class KvStoreSinkTest {
         var entry = RocksDbSharedRegistry.acquire("s", home.resolve("kv").resolve("s"));
         try {
             byte[] v = entry.db.get("k".getBytes(StandardCharsets.UTF_8));
-            assertThat(JSON.readTree(v).get("v").asText()).isEqualTo("third");
+            assertThat(JSON.readTree(v).get("v").asString()).isEqualTo("third");
         } finally {
             RocksDbSharedRegistry.release(entry);
         }

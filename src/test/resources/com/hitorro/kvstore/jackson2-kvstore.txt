@@ -1,0 +1,99 @@
+typed.put.d1=ok:null
+typed.put.d2=ok:null
+typed.put.d3=ok:null
+typed.batchPut=ok:null
+typed.raw.d1=ok:{"id":"d1","count":3,"big":12345678901,"score":1.1,"f":0.1,"flag":true,"boxed":null,"dec":123456789012345678901234567890.50,"bi":12345678901234567890,"when":1700000000123,"blob":"AAH/","c":"x","kind":"B","tags":["a","é/ ",null],"attrs":{"z":1,"a":2.5,"l":[true,"s"]},"parent":null,"nul":null,"hidden":"h"}
+typed.get.d1=ok:Doc[id=d1,count=3,big=12345678901,score=1.1,f=0.1,flag=true,boxed=null,dec=123456789012345678901234567890.50,bi=12345678901234567890,when=1700000000123,blob=[0, 1, -1],c=120,kind=B,tags=[a, é/ , null],attrs={a=2.5, l=[true, s], z=1},parent=null,nul=null,hidden=h]
+typed.raw.d2=ok:{"id":"d2","count":3,"big":12345678901,"score":-0.0,"f":0.1,"flag":true,"boxed":null,"dec":1E+3,"bi":12345678901234567890,"when":1700000000123,"blob":"AAH/","c":"x","kind":"B","tags":[],"attrs":null,"parent":{"id":"p","count":3,"big":12345678901,"score":1.1,"f":0.1,"flag":true,"boxed":null,"dec":123456789012345678901234567890.50,"bi":12345678901234567890,"when":1700000000123,"blob":"AAH/","c":"x","kind":"B","tags":["a","é/ ",null],"attrs":{"z":1,"a":2.5,"l":[true,"s"]},"parent":null,"nul":null,"hidden":"h"},"nul":null,"hidden":"h"}
+typed.get.d2=ok:Doc[id=d2,count=3,big=12345678901,score=-0.0,f=0.1,flag=true,boxed=null,dec=1E+3,bi=12345678901234567890,when=1700000000123,blob=[0, 1, -1],c=120,kind=B,tags=[],attrs=null,parent=Doc[id=p,count=3,big=12345678901,score=1.1,f=0.1,flag=true,boxed=null,dec=123456789012345678901234567890.50,bi=12345678901234567890,when=1700000000123,blob=[0, 1, -1],c=120,kind=B,tags=[a, é/ , null],attrs={a=2.5, l=[true, s], z=1},parent=null,nul=null,hidden=h],nul=null,hidden=h]
+typed.raw.d3=ok:{"id":"d3","count":0,"big":0,"score":0.0,"f":0.0,"flag":false,"boxed":null,"dec":null,"bi":null,"when":null,"blob":null,"c":"\\u0000","kind":null,"tags":null,"attrs":null,"parent":null,"nul":null,"hidden":null}
+typed.get.d3=ok:Doc[id=d3,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.raw.b1=ok:{"id":"b1","count":3,"big":12345678901,"score":1.1,"f":0.1,"flag":true,"boxed":null,"dec":123456789012345678901234567890.50,"bi":12345678901234567890,"when":1700000000123,"blob":"AAH/","c":"x","kind":"B","tags":["a","é/ ",null],"attrs":{"z":1,"a":2.5,"l":[true,"s"]},"parent":null,"nul":null,"hidden":"h"}
+typed.get.b1=ok:Doc[id=b1,count=3,big=12345678901,score=1.1,f=0.1,flag=true,boxed=null,dec=123456789012345678901234567890.50,bi=12345678901234567890,when=1700000000123,blob=[0, 1, -1],c=120,kind=B,tags=[a, é/ , null],attrs={a=2.5, l=[true, s], z=1},parent=null,nul=null,hidden=h]
+typed.raw.b2=ok:{"id":"d3","count":0,"big":0,"score":0.0,"f":0.0,"flag":false,"boxed":null,"dec":null,"bi":null,"when":null,"blob":null,"c":"\\u0000","kind":null,"tags":null,"attrs":null,"parent":null,"nul":null,"hidden":null}
+typed.get.b2=ok:Doc[id=d3,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.get.missing=fail:Key not found
+typed.batchGet=ok:[Doc[id=d3,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null], Doc[id=d3,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]]
+typed.scan.b=b1=Doc[id=b1,count=3,big=12345678901,score=1.1,f=0.1,flag=true,boxed=null,dec=123456789012345678901234567890.50,bi=12345678901234567890,when=1700000000123,blob=[0, 1, -1],c=120,kind=B,tags=[a, é/ , null],attrs={a=2.5, l=[true, s], z=1},parent=null,nul=null,hidden=h] | b2=Doc[id=d3,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null] | 
+typed.legacy.unknownProp=fail:Deserialization failed
+typed.legacy.nullPrimitive=ok:Doc[id=n,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.trailing=ok:Doc[id=t,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.trailingGarbage=ok:Doc[id=t,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.malformed=fail:Deserialization failed
+typed.legacy.empty=fail:Deserialization failed
+typed.legacy.array=fail:Deserialization failed
+typed.legacy.stringNums=ok:Doc[id=null,count=7,big=7,score=2.5,f=0.0,flag=true,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.dateString=ok:Doc[id=null,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=1767323045000,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.dateNumberString=ok:Doc[id=null,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=1700000000123,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.enumBad=fail:Deserialization failed
+typed.legacy.enumIndex=ok:Doc[id=null,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=B,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.singleQuote=fail:Deserialization failed
+typed.legacy.comments=fail:Deserialization failed
+typed.legacy.nan=fail:Deserialization failed
+typed.legacy.blobBad=fail:Deserialization failed
+typed.legacy.emptyStringInt=ok:Doc[id=null,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+typed.legacy.bomUtf8=ok:Doc[id=bom,count=0,big=0,score=0.0,f=0.0,flag=false,boxed=null,dec=null,bi=null,when=null,blob=null,c=0,kind=null,tags=null,attrs=null,parent=null,nul=null,hidden=null]
+map.put=ok:null
+map.raw=ok:{"z":null,"a":1.5,"d":5,"n":{"k":[1,"2",{"b":12345678901234567890}]},"bd":1.10}
+map.get=ok:{z=null, a=1.5, d=5, n={k=[1, 2, {b=12345678901234567890}]}, bd=1.1}
+node.get=ok:ObjectNode {"z":null,"a":1.5,"d":5,"n":{"k":[1,"2",{"b":12345678901234567890}]},"bd":1.1} z:NullNode,a:DoubleNode,d:IntNode,n:ObjectNode,bd:DoubleNode, b:BigIntegerNode,
+node.put=ok:null
+node.raw=ok:{"b":1.1,"a":[],"big":12345678901234567890,"dec":1.5E300,"s":"é"}
+node.legacy.unknownProp=ok:ObjectNode {"id":"u","extra":1}
+map.legacy.unknownProp=ok:{id=u, extra=1}
+node.legacy.nullPrimitive=ok:ObjectNode {"id":"n","count":null,"flag":null,"c":null}
+map.legacy.nullPrimitive=ok:{id=n, count=null, flag=null, c=null}
+node.legacy.trailing=ok:ObjectNode {"id":"t"}
+map.legacy.trailing=ok:{id=t}
+node.legacy.trailingGarbage=ok:ObjectNode {"id":"t"}
+map.legacy.trailingGarbage=ok:{id=t}
+node.legacy.malformed=fail:Deserialization failed
+map.legacy.malformed=fail:Deserialization failed
+node.legacy.empty=fail:Deserialization failed
+map.legacy.empty=fail:Deserialization failed
+node.legacy.array=ok:ArrayNode [1]
+map.legacy.array=fail:Deserialization failed
+node.legacy.stringNums=ok:ObjectNode {"count":"7","score":"2.5","big":7.9,"flag":"true"}
+map.legacy.stringNums=ok:{count=7, score=2.5, big=7.9, flag=true}
+node.legacy.dateString=ok:ObjectNode {"when":"2026-01-02T03:04:05.000+00:00"}
+map.legacy.dateString=ok:{when=2026-01-02T03:04:05.000+00:00}
+node.legacy.dateNumberString=ok:ObjectNode {"when":"1700000000123"}
+map.legacy.dateNumberString=ok:{when=1700000000123}
+node.legacy.enumBad=ok:ObjectNode {"kind":"Z"}
+map.legacy.enumBad=ok:{kind=Z}
+node.legacy.enumIndex=ok:ObjectNode {"kind":1}
+map.legacy.enumIndex=ok:{kind=1}
+node.legacy.singleQuote=fail:Deserialization failed
+map.legacy.singleQuote=fail:Deserialization failed
+node.legacy.comments=fail:Deserialization failed
+map.legacy.comments=fail:Deserialization failed
+node.legacy.nan=fail:Deserialization failed
+map.legacy.nan=fail:Deserialization failed
+node.legacy.blobBad=ok:ObjectNode {"blob":"***"}
+map.legacy.blobBad=ok:{blob=***}
+node.legacy.emptyStringInt=ok:ObjectNode {"count":""}
+map.legacy.emptyStringInt=ok:{count=}
+node.legacy.bomUtf8=ok:ObjectNode {"id":"bom"}
+map.legacy.bomUtf8=ok:{id=bom}
+sink.add.1843311248=true
+sink.add.890061460=true
+sink.add.685511377=true
+sink.add.322006587=true
+sink.add.-1877069568=true
+sink.add.-1422759921=true
+sink.add.-1230270738=true
+sink.add.-1881293962=true
+sink.add.-1704201290=true
+sink.idem=true,true
+sink2.add.-1999627579=true
+sink2.add.-736572671=true
+sink2.add.-1725481236=true
+sink2.add.167235412=true
+sink2.add.-92977055=true
+source.rows2={"user":{"name":{"x":1}}} | {"user":{"name":5}} | {"user":"str"} | {"user":{"name":"Al"},"k":1} | 
+source.rows=ObjectNode {"id":[1,2],"v":3} id:ArrayNode,v:IntNode, | ObjectNode {"id":2.5,"v":6} id:DoubleNode,v:IntNode, | ObjectNode {"id":7,"v":true} id:IntNode,v:BooleanNode, | ObjectNode {"v":5} v:IntNode, | MissingNode   | IntNode 42  | ObjectNode {"id":"i","v":1} id:TextNode,v:IntNode, | ObjectNode {"id":"r1","v":"again"} id:TextNode,v:TextNode, | ObjectNode {"id":true,"v":7} id:BooleanNode,v:IntNode, | !RTE:RuntimeException<jackson> | !RTE:RuntimeException<jackson> | !RTE:RuntimeException<jackson> | !RTE:RuntimeException<jackson> | !RTE:RuntimeException<jackson> | 
+remote.get=ok:{"doc":"/api/retrieval/documents/idx/a+b"}
+remote.get.missing=ok:null
+remote.scan.values={"b":1.1,"a":"é/","big":12345678901234567890,"dec":1.5E300,"n":null} | [1,"x"] | "s" | 7 | {"x":1} | true | 
+remote.scan.entries=k1={"b":1.1,"a":"é/","big":12345678901234567890,"dec":1.5E300,"n":null} | 2=[1,"x"] | ="s" | =7 | t={"x":1} | last=true | 
+remote.typed.scan=null | null | null | null | null | null | 

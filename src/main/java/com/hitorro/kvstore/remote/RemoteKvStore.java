@@ -3,6 +3,7 @@
  */
 package com.hitorro.kvstore.remote;
 
+import com.hitorro.util.json.JsonMappers;
 import com.hitorro.kvstore.KVStore;
 import com.hitorro.kvstore.Result;
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import com.hitorro.util.json.JsonValues;
 
 /**
  * HTTP client that implements {@link KVStore} against a remote
@@ -186,7 +188,7 @@ public class RemoteKvStore implements KVStore {
         private int i;
         ScanIterator(java.util.List<byte[]> pages, boolean valuesOnly) {
             java.util.List<T> parsed = new java.util.ArrayList<>();
-            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var mapper = JsonMappers.json();
             for (byte[] pageBytes : pages) {
                 String[] lines = new String(pageBytes, StandardCharsets.UTF_8).split("\n");
                 for (String line : lines) {
@@ -201,7 +203,7 @@ public class RemoteKvStore implements KVStore {
                             @SuppressWarnings("unchecked") T item = (T) vBytes;
                             parsed.add(item);
                         } else {
-                            byte[] kBytes = (key == null || key.isNull() ? "" : key.asText())
+                            byte[] kBytes = (key == null || key.isNull() ? "" : JsonValues.asText(key))
                                     .getBytes(StandardCharsets.UTF_8);
                             @SuppressWarnings("unchecked") T item = (T) Map.entry(kBytes, vBytes);
                             parsed.add(item);
