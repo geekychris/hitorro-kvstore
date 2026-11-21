@@ -5,7 +5,7 @@
 
     <groupId>com.hitorro</groupId>
     <artifactId>hitorro-kvstore</artifactId>
-    <version>3.0.2</version>
+    <version>4.0.0</version>
     <packaging>jar</packaging>
 
     <name>hitorro kvstore component</name>
@@ -89,9 +89,9 @@
                 <version>3.30.17</version>
             </dependency>
             <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
+                <groupId>tools.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>2.18.12</version>
+                <version>3.1.8</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -431,18 +431,18 @@
         <dependency>
             <groupId>com.hitorro</groupId>
             <artifactId>hitorro-streams</artifactId>
-            <version>3.0.2</version>
+            <version>4.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.hitorro</groupId>
             <artifactId>hitorro-basefile</artifactId>
-            <version>3.0.2</version>
+            <version>4.0.0</version>
         </dependency>
         <!-- Hitorro dependencies -->
         <dependency>
             <groupId>com.hitorro</groupId>
             <artifactId>hitorro-util</artifactId>
-            <version>3.0.2</version>
+            <version>4.0.0</version>
         </dependency>
 
         <!-- RocksDB Core -->
@@ -493,14 +493,12 @@
 
         <!-- Jackson for serialization (from hitorro-util) -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.18.12</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.18.12</version>
         </dependency>
 
         <!-- Logging -->

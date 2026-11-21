@@ -3,8 +3,9 @@
  */
 package com.hitorro.util.core.iterator.sinks.kvstore;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.hitorro.util.json.JsonMappers;
 import com.hitorro.util.core.iterator.sinks.JsonNodeSinkBase;
 import com.hitorro.util.io.StoreException;
 
@@ -13,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.hitorro.util.json.JsonValues;
 
 /**
  * RocksDB-backed KV sink for JSON rows. Extracts a key from each
@@ -33,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class KvStoreSink extends JsonNodeSinkBase {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.json();
 
     private final String name;
     private final String keyExpr;
@@ -96,6 +98,6 @@ public class KvStoreSink extends JsonNodeSinkBase {
             if (cur == null || cur.isNull()) return "<null>";
             cur = cur.get(seg);
         }
-        return (cur == null || cur.isNull()) ? "<null>" : cur.asText();
+        return (cur == null || cur.isNull()) ? "<null>" : JsonValues.asText(cur);
     }
 }

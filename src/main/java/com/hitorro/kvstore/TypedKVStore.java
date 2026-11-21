@@ -1,9 +1,10 @@
 package com.hitorro.kvstore;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import com.hitorro.util.json.JsonMappers;
 import org.apache.log4j.Logger;
+import tools.jackson.core.JacksonException;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -28,7 +29,7 @@ public class TypedKVStore<V> implements AutoCloseable {
     public TypedKVStore(KVStore store, Class<V> valueClass) {
         this.store = store;
         this.valueClass = valueClass;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = JsonMappers.json();
     }
 
     public TypedKVStore(KVStore store, Class<V> valueClass, ObjectMapper objectMapper) {
@@ -283,7 +284,7 @@ public class TypedKVStore<V> implements AutoCloseable {
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(value);
             return Result.success(bytes);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             logger.error("Failed to serialize value", e);
             return Result.failure("Serialization failed: " + e.getMessage());
         }
@@ -293,7 +294,7 @@ public class TypedKVStore<V> implements AutoCloseable {
         try {
             V value = objectMapper.readValue(bytes, valueClass);
             return Result.success(value);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             logger.error("Failed to deserialize value", e);
             return Result.failure("Deserialization failed: " + e.getMessage());
         }
